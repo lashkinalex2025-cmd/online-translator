@@ -55,7 +55,7 @@ export function VoicePanel({
   const ttsOk = isTtsSupported()
   const canSpeakTranslation = Boolean(translatedText.trim()) && ttsOk
 
-  const handleSpeak = async (text: string, lang: LangCode | null) => {
+  const handleSpeak = (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
       onToast('Нет текста для озвучивания')
       return
@@ -64,11 +64,10 @@ export function VoicePanel({
       onToast('Язык текста ещё не определён')
       return
     }
-    try {
-      await speakText(text, lang)
-    } catch (e) {
+    // Важно: speakText вызывается синхронно из обработчика нажатия (iOS/Android)
+    void speakText(text, lang).catch((e: unknown) => {
       onToast(e instanceof Error ? e.message : 'Не удалось озвучить текст')
-    }
+    })
   }
 
   return (
@@ -122,7 +121,7 @@ export function VoicePanel({
                 type="button"
                 className="icon-btn"
                 aria-label="Прослушать распознанный текст"
-                onClick={() => void handleSpeak(displaySource, effectiveSource)}
+                onClick={() => handleSpeak(displaySource, effectiveSource)}
               >
                 🔊
               </button>
@@ -143,7 +142,7 @@ export function VoicePanel({
                 type="button"
                 className="icon-btn"
                 aria-label="Прослушать перевод"
-                onClick={() => void handleSpeak(translatedText, targetLang)}
+                onClick={() => handleSpeak(translatedText, targetLang)}
               >
                 🔊
               </button>
@@ -158,7 +157,7 @@ export function VoicePanel({
             type="button"
             className="listen-btn"
             disabled={!canSpeakTranslation}
-            onClick={() => void handleSpeak(translatedText, targetLang)}
+            onClick={() => handleSpeak(translatedText, targetLang)}
             aria-label="Прослушать перевод"
           >
             🔊 Прослушать перевод
