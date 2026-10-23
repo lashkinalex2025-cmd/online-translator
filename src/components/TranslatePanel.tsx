@@ -44,7 +44,7 @@ export function TranslatePanel({
         : 'Автоопределение'
       : getLangName(sourceLang)
 
-  const handleSpeak = (text: string, lang: LangCode | null) => {
+  const handleSpeak = async (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
       onToast('Нечего озвучивать')
       return
@@ -54,7 +54,7 @@ export function TranslatePanel({
       return
     }
     try {
-      speakText(text, lang)
+      await speakText(text, lang)
     } catch (e) {
       onToast(e instanceof Error ? e.message : 'Ошибка озвучивания')
     }
@@ -72,7 +72,7 @@ export function TranslatePanel({
                 className="icon-btn"
                 title="Прослушать"
                 aria-label="Прослушать исходный текст"
-                onClick={() => handleSpeak(sourceText, effectiveSource)}
+                onClick={() => void handleSpeak(sourceText, effectiveSource)}
               >
                 🔊
               </button>
@@ -123,7 +123,7 @@ export function TranslatePanel({
                 className="icon-btn"
                 title="Прослушать перевод"
                 aria-label="Прослушать перевод"
-                onClick={() => handleSpeak(translatedText, targetLang)}
+                onClick={() => void handleSpeak(translatedText, targetLang)}
               >
                 🔊
               </button>

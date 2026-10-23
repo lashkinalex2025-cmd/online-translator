@@ -52,8 +52,10 @@ export function VoicePanel({
         ? `Авто → ${getLangName(detectedLang)}`
         : 'Автоопределение языка'
       : getLangName(sourceLang)
+  const ttsOk = isTtsSupported()
+  const canSpeakTranslation = Boolean(translatedText.trim()) && ttsOk
 
-  const handleSpeak = (text: string, lang: LangCode | null) => {
+  const handleSpeak = async (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
       onToast('Нечего озвучивать')
       return
@@ -63,7 +65,7 @@ export function VoicePanel({
       return
     }
     try {
-      speakText(text, lang)
+      await speakText(text, lang)
     } catch (e) {
       onToast(e instanceof Error ? e.message : 'Ошибка озвучивания')
     }
@@ -114,13 +116,13 @@ export function VoicePanel({
       <div className="panel">
         <div className="panel-label">
           <span>Распознано ({sourceLabel})</span>
-          {isTtsSupported() && (
+          {ttsOk && (
             <div className="panel-actions">
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Прослушать"
-                onClick={() => handleSpeak(displaySource, effectiveSource)}
+                aria-label="Прослушать распознанный текст"
+                onClick={() => void handleSpeak(displaySource, effectiveSource)}
               >
                 🔊
               </button>
@@ -135,13 +137,13 @@ export function VoicePanel({
       <div className="panel output">
         <div className="panel-label">
           <span>Перевод ({getLangName(targetLang)})</span>
-          {isTtsSupported() && (
+          {ttsOk && (
             <div className="panel-actions">
               <button
                 type="button"
                 className="icon-btn"
                 aria-label="Прослушать перевод"
-                onClick={() => handleSpeak(translatedText, targetLang)}
+                onClick={() => void handleSpeak(translatedText, targetLang)}
               >
                 🔊
               </button>
@@ -151,6 +153,17 @@ export function VoicePanel({
         <div className={`output-text${translatedText ? '' : ' empty'}`}>
           {translatedText || 'Перевод появится здесь'}
         </div>
+        {ttsOk && (
+          <button
+            type="button"
+            className="listen-btn"
+            disabled={!canSpeakTranslation}
+            onClick={() => void handleSpeak(translatedText, targetLang)}
+            aria-label="Прослушать перевод"
+          >
+            🔊 Прослушать перевод
+          </button>
+        )}
       </div>
 
       <div className="voice-controls">

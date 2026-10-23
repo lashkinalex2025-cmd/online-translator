@@ -6,6 +6,7 @@ import { VoicePanel } from './components/VoicePanel'
 import { RecordsList } from './components/RecordsList'
 import { TabNav } from './components/TabNav'
 import { SplashScreen } from './components/SplashScreen'
+import { Footer } from './components/Footer'
 import { useTheme } from './hooks/useTheme'
 import { createDebouncedTranslate, translateText } from './services/translate'
 import {
@@ -540,6 +541,8 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite}
           />
         )}
+
+        <Footer />
       </div>
 
       <TabNav active={tab} onChange={setTab} />
