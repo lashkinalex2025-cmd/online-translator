@@ -1,5 +1,8 @@
 export type LangCode = 'ru' | 'en' | 'de' | 'fr' | 'es'
 
+/** Source language can be fixed or auto-detected from text/speech */
+export type SourceLang = LangCode | 'auto'
+
 export interface Language {
   code: LangCode
   name: string

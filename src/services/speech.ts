@@ -3,8 +3,8 @@ import { SPEECH_LOCALES } from '../constants/languages'
 
 export type SpeechCallbacks = {
   onInterim?: (text: string) => void
-  onFinal?: (text: string) => void
   onError?: (message: string) => void
+  onFinal?: (text: string) => void
   onStart?: () => void
   onEnd?: () => void
 }
@@ -46,27 +46,87 @@ export function isSpeechRecognitionSupported(): boolean {
   return getRecognitionCtor() !== null
 }
 
+const ERROR_MAP: Record<string, string> = {
+  'not-allowed':
+    'Доступ к микрофону запрещён. Разрешите микрофон в настройках браузера.',
+  'service-not-allowed': 'Сервис распознавания речи недоступен.',
+  'audio-capture': 'Микрофон недоступен. Проверьте подключение устройства.',
+  'no-speech': 'Речь не обнаружена. Говорите громче или ближе к микрофону.',
+  network: 'Ошибка сети при распознавании речи.',
+  aborted: '',
+}
+
 export class ContinuousSpeechRecognizer {
   private recognition: RecognitionInstance | null = null
   private shouldContinue = false
+  private switchingLang = false
   private callbacks: SpeechCallbacks = {}
+  private currentLang: LangCode = 'ru'
+
+  get language(): LangCode {
+    return this.currentLang
+  }
 
   start(lang: LangCode, callbacks: SpeechCallbacks): void {
-    const Ctor = getRecognitionCtor()
-    if (!Ctor) {
-      callbacks.onError?.('Распознавание речи не поддерживается в этом браузере. Используйте Chrome или Edge.')
+    if (!getRecognitionCtor()) {
+      callbacks.onError?.(
+        'Распознавание речи не поддерживается в этом браузере. Используйте Chrome или Edge.',
+      )
       return
     }
 
     this.stop()
     this.callbacks = callbacks
     this.shouldContinue = true
+    this.currentLang = lang
+    this.createAndStart()
+  }
+
+  stop(): void {
+    this.shouldContinue = false
+    this.switchingLang = false
+    if (this.recognition) {
+      try {
+        this.recognition.onend = null
+        this.recognition.stop()
+      } catch {
+        // ignore
+      }
+      this.recognition = null
+    }
+  }
+
+  /**
+   * Switch recognition language and restart the engine so the locale applies.
+   */
+  setLanguage(lang: LangCode): void {
+    if (lang === this.currentLang) return
+    this.currentLang = lang
+    if (!this.shouldContinue) return
+
+    this.switchingLang = true
+    if (this.recognition) {
+      try {
+        this.recognition.stop()
+      } catch {
+        this.switchingLang = false
+        this.createAndStart()
+      }
+    } else {
+      this.switchingLang = false
+      this.createAndStart()
+    }
+  }
+
+  private createAndStart(): void {
+    const Ctor = getRecognitionCtor()
+    if (!Ctor) return
 
     const recognition = new Ctor()
-    recognition.lang = SPEECH_LOCALES[lang]
+    recognition.lang = SPEECH_LOCALES[this.currentLang]
     recognition.continuous = true
     recognition.interimResults = true
-    recognition.maxAlternatives = 1
+    recognition.maxAlternatives = 3
 
     recognition.onstart = () => {
       this.callbacks.onStart?.()
@@ -79,11 +139,8 @@ export class ContinuousSpeechRecognizer {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         const transcript = result[0]?.transcript ?? ''
-        if (result.isFinal) {
-          finalChunk += transcript
-        } else {
-          interim += transcript
-        }
+        if (result.isFinal) finalChunk += transcript
+        else interim += transcript
       }
 
       if (interim) this.callbacks.onInterim?.(interim)
@@ -91,22 +148,23 @@ export class ContinuousSpeechRecognizer {
     }
 
     recognition.onerror = (event) => {
-      const map: Record<string, string> = {
-        'not-allowed': 'Доступ к микрофону запрещён. Разрешите микрофон в настройках браузера.',
-        'service-not-allowed': 'Сервис распознавания речи недоступен.',
-        'audio-capture': 'Микрофон недоступен. Проверьте подключение устройства.',
-        'no-speech': 'Речь не обнаружена. Говорите громче или ближе к микрофону.',
-        network: 'Ошибка сети при распознавании речи.',
-        aborted: '',
-      }
-      const msg = map[event.error]
+      const msg = ERROR_MAP[event.error]
       if (msg) this.callbacks.onError?.(msg)
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed' || event.error === 'audio-capture') {
+      if (
+        event.error === 'not-allowed' ||
+        event.error === 'service-not-allowed' ||
+        event.error === 'audio-capture'
+      ) {
         this.shouldContinue = false
       }
     }
 
     recognition.onend = () => {
+      if (this.switchingLang) {
+        this.switchingLang = false
+        if (this.shouldContinue) this.createAndStart()
+        return
+      }
       if (this.shouldContinue) {
         try {
           recognition.start()
@@ -120,31 +178,11 @@ export class ContinuousSpeechRecognizer {
     }
 
     this.recognition = recognition
-
     try {
       recognition.start()
     } catch {
       this.callbacks.onError?.('Не удалось запустить распознавание речи.')
       this.shouldContinue = false
-    }
-  }
-
-  stop(): void {
-    this.shouldContinue = false
-    if (this.recognition) {
-      try {
-        this.recognition.onend = null
-        this.recognition.stop()
-      } catch {
-        // ignore
-      }
-      this.recognition = null
-    }
-  }
-
-  setLanguage(lang: LangCode): void {
-    if (this.recognition) {
-      this.recognition.lang = SPEECH_LOCALES[lang]
     }
   }
 }

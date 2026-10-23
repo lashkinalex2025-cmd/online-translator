@@ -1,4 +1,4 @@
-import type { LangCode, VoiceStatus } from '../types'
+import type { LangCode, SourceLang, VoiceStatus } from '../types'
 import { getLangName } from '../constants/languages'
 import { speakText, isTtsSupported } from '../services/tts'
 
@@ -8,8 +8,10 @@ interface VoicePanelProps {
   finalText: string
   translatedText: string
   error: string | null
-  sourceLang: LangCode
+  sourceLang: SourceLang
   targetLang: LangCode
+  detectedLang: LangCode | null
+  detecting: boolean
   supported: boolean
   onStart: () => void
   onStop: () => void
@@ -32,17 +34,32 @@ export function VoicePanel({
   error,
   sourceLang,
   targetLang,
+  detectedLang,
+  detecting,
   supported,
   onStart,
   onStop,
   onToast,
 }: VoicePanelProps) {
   const isActive = status === 'listening' || status === 'translating'
-  const displaySource = finalText + (interimText ? (finalText ? ' ' : '') + interimText : '')
+  const displaySource =
+    finalText + (interimText ? (finalText ? ' ' : '') + interimText : '')
+  const effectiveSource =
+    sourceLang === 'auto' ? detectedLang ?? null : sourceLang
+  const sourceLabel =
+    sourceLang === 'auto'
+      ? detectedLang
+        ? `Авто → ${getLangName(detectedLang)}`
+        : 'Автоопределение языка'
+      : getLangName(sourceLang)
 
-  const handleSpeak = (text: string, lang: LangCode) => {
+  const handleSpeak = (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
       onToast('Нечего озвучивать')
+      return
+    }
+    if (!lang) {
+      onToast('Язык ещё не определён')
       return
     }
     try {
@@ -58,13 +75,28 @@ export function VoicePanel({
 
       <div className="status-line">
         {isActive && (
-          <span className={`status-pill ${status === 'listening' ? 'listening' : 'translating'}`}>
+          <span
+            className={`status-pill ${status === 'listening' ? 'listening' : 'translating'}`}
+          >
             <span className="pulse-dot" />
             {STATUS_LABEL[status]}
           </span>
         )}
         {!isActive && status !== 'error' && (
-          <span className="status-pill">{STATUS_LABEL[status === 'stopped' ? 'stopped' : 'idle']}</span>
+          <span className="status-pill">
+            {STATUS_LABEL[status === 'stopped' ? 'stopped' : 'idle']}
+          </span>
+        )}
+        {detecting && (
+          <span className="status-pill translating">
+            <span className="pulse-dot" />
+            Определяю язык...
+          </span>
+        )}
+        {sourceLang === 'auto' && detectedLang && !detecting && (
+          <span className="status-pill detected">
+            Язык: {getLangName(detectedLang)}
+          </span>
         )}
       </div>
 
@@ -73,22 +105,22 @@ export function VoicePanel({
       {!supported && (
         <div className="panel">
           <p>
-            Распознавание речи не поддерживается в этом браузере. Откройте приложение в Chrome или
-            Edge и разрешите доступ к микрофону.
+            Распознавание речи не поддерживается в этом браузере. Откройте
+            приложение в Chrome или Edge и разрешите доступ к микрофону.
           </p>
         </div>
       )}
 
       <div className="panel">
         <div className="panel-label">
-          <span>Распознано ({getLangName(sourceLang)})</span>
+          <span>Распознано ({sourceLabel})</span>
           {isTtsSupported() && (
             <div className="panel-actions">
               <button
                 type="button"
                 className="icon-btn"
                 aria-label="Прослушать"
-                onClick={() => handleSpeak(displaySource, sourceLang)}
+                onClick={() => handleSpeak(displaySource, effectiveSource)}
               >
                 🔊
               </button>
@@ -137,8 +169,9 @@ export function VoicePanel({
           </button>
         )}
         <p className="voice-hint">
-          Говорите на языке «{getLangName(sourceLang)}». Текст будет переведён на «
-          {getLangName(targetLang)}» в реальном времени.
+          {sourceLang === 'auto'
+            ? `Говорите на любом из поддерживаемых языков. Приложение само определит язык и переведёт на «${getLangName(targetLang)}».`
+            : `Говорите на языке «${getLangName(sourceLang)}». Текст будет переведён на «${getLangName(targetLang)}» в реальном времени.`}
         </p>
       </div>
     </>

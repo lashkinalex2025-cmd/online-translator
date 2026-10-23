@@ -1,12 +1,13 @@
 import { speakText, isTtsSupported } from '../services/tts'
-import type { LangCode } from '../types'
+import type { LangCode, SourceLang } from '../types'
 import { getLangName } from '../constants/languages'
 
 interface TranslatePanelProps {
   sourceText: string
   translatedText: string
-  sourceLang: LangCode
+  sourceLang: SourceLang
   targetLang: LangCode
+  detectedLang: LangCode | null
   loading: boolean
   error: string | null
   isFavorite: boolean
@@ -23,6 +24,7 @@ export function TranslatePanel({
   translatedText,
   sourceLang,
   targetLang,
+  detectedLang,
   loading,
   error,
   isFavorite,
@@ -34,10 +36,21 @@ export function TranslatePanel({
   onToast,
 }: TranslatePanelProps) {
   const ttsOk = isTtsSupported()
+  const effectiveSource = sourceLang === 'auto' ? detectedLang : sourceLang
+  const sourceLabel =
+    sourceLang === 'auto'
+      ? detectedLang
+        ? `Авто → ${getLangName(detectedLang)}`
+        : 'Автоопределение'
+      : getLangName(sourceLang)
 
-  const handleSpeak = (text: string, lang: LangCode) => {
+  const handleSpeak = (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
       onToast('Нечего озвучивать')
+      return
+    }
+    if (!lang) {
+      onToast('Язык ещё не определён')
       return
     }
     try {
@@ -51,7 +64,7 @@ export function TranslatePanel({
     <>
       <div className="panel">
         <div className="panel-label">
-          <span>{getLangName(sourceLang)}</span>
+          <span>{sourceLabel}</span>
           <div className="panel-actions">
             {ttsOk && (
               <button
@@ -59,7 +72,7 @@ export function TranslatePanel({
                 className="icon-btn"
                 title="Прослушать"
                 aria-label="Прослушать исходный текст"
-                onClick={() => handleSpeak(sourceText, sourceLang)}
+                onClick={() => handleSpeak(sourceText, effectiveSource)}
               >
                 🔊
               </button>
@@ -78,7 +91,11 @@ export function TranslatePanel({
         <textarea
           value={sourceText}
           onChange={(e) => onSourceChange(e.target.value)}
-          placeholder="Введите текст для перевода..."
+          placeholder={
+            sourceLang === 'auto'
+              ? 'Введите текст — язык определится автоматически...'
+              : 'Введите текст для перевода...'
+          }
           aria-label="Текст для перевода"
           maxLength={5000}
         />
@@ -126,6 +143,7 @@ export function TranslatePanel({
               title="Обмен текстом"
               aria-label="Обмен текстом с переводом"
               onClick={onSwapTexts}
+              disabled={sourceLang === 'auto'}
             >
               ⇅
             </button>
@@ -133,7 +151,9 @@ export function TranslatePanel({
               type="button"
               className="icon-btn"
               title={isFavorite ? 'Убрать из избранного' : 'В избранное'}
-              aria-label={isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
+              aria-label={
+                isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'
+              }
               onClick={onToggleFavorite}
             >
               {isFavorite ? '⭐' : '☆'}

@@ -13,6 +13,10 @@ import {
   isSpeechRecognitionSupported,
 } from './services/speech'
 import {
+  detectLanguage,
+  detectLanguageQuick,
+} from './services/detectLanguage'
+import {
   addFavorite,
   addToHistory,
   clearHistory,
@@ -21,14 +25,23 @@ import {
   getHistory,
   toggleFavorite,
 } from './services/storage'
-import type { AppTab, LangCode, TranslationRecord, VoiceStatus } from './types'
+import { getLangName, guessSpeechLangFromBrowser } from './constants/languages'
+import type {
+  AppTab,
+  LangCode,
+  SourceLang,
+  TranslationRecord,
+  VoiceStatus,
+} from './types'
 
 export default function App() {
   const { theme, toggleTheme } = useTheme()
   const [tab, setTab] = useState<AppTab>('translate')
 
-  const [sourceLang, setSourceLang] = useState<LangCode>('ru')
+  const [sourceLang, setSourceLang] = useState<SourceLang>('auto')
   const [targetLang, setTargetLang] = useState<LangCode>('en')
+  const [detectedLang, setDetectedLang] = useState<LangCode | null>(null)
+  const [detectingLang, setDetectingLang] = useState(false)
   const [sourceText, setSourceText] = useState('')
   const [translatedText, setTranslatedText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -46,14 +59,15 @@ export default function App() {
 
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const textDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const debouncedTranslate = useMemo(() => createDebouncedTranslate(450), [])
   const recognizer = useRef(new ContinuousSpeechRecognizer())
-  const voiceBuffer = useRef('')
   const lastSavedHash = useRef('')
-  const langsRef = useRef({ sourceLang, targetLang })
+  const langsRef = useRef({ sourceLang, targetLang, detectedLang })
+  const lastAnnouncedDetect = useRef<LangCode | null>(null)
 
-  langsRef.current = { sourceLang, targetLang }
+  langsRef.current = { sourceLang, targetLang, detectedLang }
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -75,14 +89,9 @@ export default function App() {
     return () => {
       recognizer.current.stop()
       if (toastTimer.current) clearTimeout(toastTimer.current)
+      if (textDetectTimer.current) clearTimeout(textDetectTimer.current)
     }
   }, [])
-
-  useEffect(() => {
-    if (voiceStatus === 'listening' || voiceStatus === 'translating') {
-      recognizer.current.setLanguage(sourceLang)
-    }
-  }, [sourceLang, voiceStatus])
 
   const saveTranslation = useCallback(
     async (src: string, dst: string, from: LangCode, to: LangCode) => {
@@ -100,7 +109,27 @@ export default function App() {
     [refreshLists],
   )
 
-  const handleSourceChange = useCallback(
+  const resolveSourceLang = useCallback(
+    async (text: string, mode: SourceLang): Promise<LangCode> => {
+      if (mode !== 'auto') return mode
+      setDetectingLang(true)
+      try {
+        const quick = detectLanguageQuick(text)
+        if (quick) {
+          setDetectedLang(quick)
+          return quick
+        }
+        const result = await detectLanguage(text)
+        setDetectedLang(result.lang)
+        return result.lang
+      } finally {
+        setDetectingLang(false)
+      }
+    },
+    [],
+  )
+
+  const onTextInput = useCallback(
     (text: string) => {
       setSourceText(text)
       setCurrentFavoriteId(null)
@@ -109,6 +138,34 @@ export default function App() {
       if (!text.trim()) {
         setTranslatedText('')
         setLoading(false)
+        if (sourceLang === 'auto') setDetectedLang(null)
+        return
+      }
+
+      if (sourceLang === 'auto') {
+        const quick = detectLanguageQuick(text)
+        if (quick) setDetectedLang(quick)
+
+        if (textDetectTimer.current) clearTimeout(textDetectTimer.current)
+        setLoading(true)
+        textDetectTimer.current = setTimeout(() => {
+          void (async () => {
+            try {
+              const from = await resolveSourceLang(text, 'auto')
+              if (from === targetLang) {
+                setTranslatedText(text)
+                return
+              }
+              const result = await translateText(text, from, targetLang)
+              setTranslatedText(result)
+              void saveTranslation(text, result, from, targetLang)
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Ошибка перевода')
+            } finally {
+              setLoading(false)
+            }
+          })()
+        }, 500)
         return
       }
 
@@ -130,38 +187,58 @@ export default function App() {
         setLoading,
       )
     },
-    [debouncedTranslate, sourceLang, targetLang, saveTranslation],
+    [
+      sourceLang,
+      targetLang,
+      resolveSourceLang,
+      debouncedTranslate,
+      saveTranslation,
+    ],
   )
 
   // Re-translate when languages change
   useEffect(() => {
     if (!sourceText.trim()) return
-    if (sourceLang === targetLang) {
-      setTranslatedText(sourceText)
-      return
-    }
     setLoading(true)
     setError(null)
-    void translateText(sourceText, sourceLang, targetLang)
-      .then((result) => {
+    void (async () => {
+      try {
+        const from = await resolveSourceLang(sourceText, sourceLang)
+        if (from === targetLang) {
+          setTranslatedText(sourceText)
+          return
+        }
+        const result = await translateText(sourceText, from, targetLang)
         setTranslatedText(result)
-        void saveTranslation(sourceText, result, sourceLang, targetLang)
-      })
-      .catch((e: unknown) => {
+        void saveTranslation(sourceText, result, from, targetLang)
+      } catch (e) {
         setError(e instanceof Error ? e.message : 'Ошибка перевода')
-      })
-      .finally(() => setLoading(false))
+      } finally {
+        setLoading(false)
+      }
+    })()
+    // intentionally only on language change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceLang, targetLang])
 
   const handleSwapLanguages = () => {
+    if (sourceLang === 'auto') {
+      showToast('Выберите конкретный исходный язык для обмена')
+      return
+    }
     setSourceLang(targetLang)
     setTargetLang(sourceLang)
     setSourceText(translatedText)
     setTranslatedText(sourceText)
+    setDetectedLang(null)
     setCurrentFavoriteId(null)
   }
 
   const handleSwapTexts = () => {
+    if (sourceLang === 'auto') {
+      showToast('Выберите конкретный исходный язык для обмена')
+      return
+    }
     if (!translatedText.trim() && !sourceText.trim()) {
       showToast('Нечего менять')
       return
@@ -170,6 +247,7 @@ export default function App() {
     setTargetLang(sourceLang)
     setSourceText(translatedText)
     setTranslatedText(sourceText)
+    setDetectedLang(null)
     setCurrentFavoriteId(null)
   }
 
@@ -177,6 +255,7 @@ export default function App() {
     setSourceText('')
     setTranslatedText('')
     setError(null)
+    setDetectedLang(null)
     setCurrentFavoriteId(null)
   }
 
@@ -199,6 +278,8 @@ export default function App() {
       return
     }
 
+    const from = sourceLang === 'auto' ? detectedLang ?? 'en' : sourceLang
+
     if (currentFavoriteId) {
       await toggleFavorite(currentFavoriteId)
       setCurrentFavoriteId(null)
@@ -210,7 +291,7 @@ export default function App() {
     const record = await addFavorite({
       sourceText: sourceText.trim(),
       translatedText: translatedText.trim(),
-      sourceLang,
+      sourceLang: from,
       targetLang,
       favorite: true,
     })
@@ -219,23 +300,56 @@ export default function App() {
     await refreshLists()
   }
 
+  const applyDetectedSpeechLang = useCallback(
+    (lang: LangCode, announce: boolean) => {
+      setDetectedLang(lang)
+      if (recognizer.current.language !== lang) {
+        recognizer.current.setLanguage(lang)
+      }
+      if (announce && lastAnnouncedDetect.current !== lang) {
+        lastAnnouncedDetect.current = lang
+        showToast(`Язык говорящего: ${getLangName(lang)}`)
+      }
+    },
+    [showToast],
+  )
+
   const translateVoiceChunk = useCallback(
     async (chunk: string) => {
-      const { sourceLang: from, targetLang: to } = langsRef.current
+      const { sourceLang: fromMode, targetLang: to } = langsRef.current
       if (!chunk.trim()) return
       setVoiceStatus('translating')
       try {
-        const result =
-          from === to ? chunk : await translateText(chunk, from, to)
-        setVoiceTranslated((prev) => (prev ? `${prev} ${result}` : result).trim())
+        let from: LangCode
+        if (fromMode === 'auto') {
+          setDetectingLang(true)
+          const quick = detectLanguageQuick(chunk)
+          if (quick) {
+            from = quick
+            applyDetectedSpeechLang(quick, true)
+          } else {
+            const result = await detectLanguage(chunk)
+            from = result.lang
+            applyDetectedSpeechLang(result.lang, true)
+          }
+          setDetectingLang(false)
+        } else {
+          from = fromMode
+        }
+
+        const result = from === to ? chunk : await translateText(chunk, from, to)
+        setVoiceTranslated((prev) =>
+          (prev ? `${prev} ${result}` : result).trim(),
+        )
         void saveTranslation(chunk, result, from, to)
         setVoiceStatus('listening')
       } catch (e) {
+        setDetectingLang(false)
         setVoiceError(e instanceof Error ? e.message : 'Ошибка перевода')
         setVoiceStatus('listening')
       }
     },
-    [saveTranslation],
+    [saveTranslation, applyDetectedSpeechLang],
   )
 
   const startVoice = async () => {
@@ -243,7 +357,8 @@ export default function App() {
     setVoiceInterim('')
     setVoiceFinal('')
     setVoiceTranslated('')
-    voiceBuffer.current = ''
+    lastAnnouncedDetect.current = null
+    if (sourceLang === 'auto') setDetectedLang(null)
 
     if (!isSpeechRecognitionSupported()) {
       setVoiceStatus('error')
@@ -264,10 +379,21 @@ export default function App() {
       return
     }
 
+    const initialLang: LangCode =
+      sourceLang === 'auto'
+        ? detectedLang ?? guessSpeechLangFromBrowser()
+        : sourceLang
+
     setVoiceStatus('listening')
 
-    recognizer.current.start(sourceLang, {
-      onInterim: (text) => setVoiceInterim(text),
+    recognizer.current.start(initialLang, {
+      onInterim: (text) => {
+        setVoiceInterim(text)
+        if (langsRef.current.sourceLang === 'auto') {
+          const quick = detectLanguageQuick(text)
+          if (quick) applyDetectedSpeechLang(quick, false)
+        }
+      },
       onFinal: (text) => {
         setVoiceFinal((prev) => (prev ? `${prev} ${text}` : text).trim())
         setVoiceInterim('')
@@ -283,7 +409,9 @@ export default function App() {
         }
       },
       onEnd: () => {
-        setVoiceStatus((s) => (s === 'listening' || s === 'translating' ? 'stopped' : s))
+        setVoiceStatus((s) =>
+          s === 'listening' || s === 'translating' ? 'stopped' : s,
+        )
       },
     })
   }
@@ -292,6 +420,7 @@ export default function App() {
     recognizer.current.stop()
     setVoiceStatus('stopped')
     setVoiceInterim('')
+    setDetectingLang(false)
   }
 
   const openRecord = (record: TranslationRecord) => {
@@ -299,6 +428,7 @@ export default function App() {
     setTargetLang(record.targetLang)
     setSourceText(record.sourceText)
     setTranslatedText(record.translatedText)
+    setDetectedLang(record.sourceLang)
     setCurrentFavoriteId(record.favorite ? record.id : null)
     setTab('translate')
     showToast('Перевод открыт')
@@ -337,7 +467,12 @@ export default function App() {
           <LanguageBar
             sourceLang={sourceLang}
             targetLang={targetLang}
-            onSourceChange={setSourceLang}
+            detectedLang={detectedLang}
+            onSourceChange={(lang) => {
+              setSourceLang(lang)
+              if (lang !== 'auto') setDetectedLang(null)
+              lastAnnouncedDetect.current = null
+            }}
             onTargetChange={setTargetLang}
             onSwap={handleSwapLanguages}
           />
@@ -349,10 +484,11 @@ export default function App() {
             translatedText={translatedText}
             sourceLang={sourceLang}
             targetLang={targetLang}
-            loading={loading}
+            detectedLang={detectedLang}
+            loading={loading || detectingLang}
             error={error}
             isFavorite={Boolean(currentFavoriteId)}
-            onSourceChange={handleSourceChange}
+            onSourceChange={onTextInput}
             onClear={handleClear}
             onCopy={handleCopy}
             onSwapTexts={handleSwapTexts}
@@ -370,6 +506,8 @@ export default function App() {
             error={voiceError}
             sourceLang={sourceLang}
             targetLang={targetLang}
+            detectedLang={detectedLang}
+            detecting={detectingLang}
             supported={isSpeechRecognitionSupported()}
             onStart={startVoice}
             onStop={stopVoice}

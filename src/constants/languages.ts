@@ -1,4 +1,4 @@
-import type { Language, LangCode } from '../types'
+import type { Language, LangCode, SourceLang } from '../types'
 
 export const LANGUAGES: Language[] = [
   { code: 'ru', name: 'Русский', nativeName: 'Русский', flag: '🇷🇺' },
@@ -12,7 +12,8 @@ export const LANG_MAP: Record<LangCode, Language> = Object.fromEntries(
   LANGUAGES.map((l) => [l.code, l]),
 ) as Record<LangCode, Language>
 
-export function getLangName(code: LangCode): string {
+export function getLangName(code: LangCode | SourceLang): string {
+  if (code === 'auto') return 'Автоопределение'
   return LANG_MAP[code]?.name ?? code
 }
 
@@ -23,4 +24,12 @@ export const SPEECH_LOCALES: Record<LangCode, string> = {
   de: 'de-DE',
   fr: 'fr-FR',
   es: 'es-ES',
+}
+
+/** Initial speech locale when source is auto */
+export function guessSpeechLangFromBrowser(): LangCode {
+  const nav = (typeof navigator !== 'undefined' ? navigator.language : 'en').toLowerCase()
+  const short = nav.slice(0, 2) as LangCode
+  if (short in SPEECH_LOCALES) return short
+  return 'ru'
 }
