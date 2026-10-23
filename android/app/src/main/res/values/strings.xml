@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Онлайн Переводчик</string>
+    <string name="title_activity_main">Онлайн Переводчик</string>
+    <string name="package_name">com.online.translator</string>
+    <string name="custom_url_scheme">com.online.translator</string>
+</resources>
