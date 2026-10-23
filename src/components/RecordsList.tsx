@@ -39,7 +39,7 @@ export function RecordsList({
         <h2>{title}</h2>
         {showClear && records.length > 0 && onClear && (
           <button type="button" className="btn-text" onClick={onClear}>
-            Очистить всё
+            Очистить историю
           </button>
         )}
       </div>

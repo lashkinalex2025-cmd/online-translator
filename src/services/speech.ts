@@ -48,10 +48,10 @@ export function isSpeechRecognitionSupported(): boolean {
 
 const ERROR_MAP: Record<string, string> = {
   'not-allowed':
-    'Доступ к микрофону запрещён. Разрешите микрофон в настройках браузера.',
-  'service-not-allowed': 'Сервис распознавания речи недоступен.',
-  'audio-capture': 'Микрофон недоступен. Проверьте подключение устройства.',
-  'no-speech': 'Речь не обнаружена. Говорите громче или ближе к микрофону.',
+    'Нет доступа к микрофону. Разрешите его использование в настройках браузера.',
+  'service-not-allowed': 'Служба распознавания речи сейчас недоступна.',
+  'audio-capture': 'Микрофон не найден. Проверьте подключение устройства.',
+  'no-speech': 'Речь не распознана. Говорите громче или ближе к микрофону.',
   network: 'Ошибка сети при распознавании речи.',
   aborted: '',
 }
@@ -70,7 +70,7 @@ export class ContinuousSpeechRecognizer {
   start(lang: LangCode, callbacks: SpeechCallbacks): void {
     if (!getRecognitionCtor()) {
       callbacks.onError?.(
-        'Распознавание речи не поддерживается в этом браузере. Используйте Chrome или Edge.',
+        'Распознавание речи не поддерживается в этом браузере. Откройте приложение в Chrome или Edge.',
       )
       return
     }
@@ -181,7 +181,7 @@ export class ContinuousSpeechRecognizer {
     try {
       recognition.start()
     } catch {
-      this.callbacks.onError?.('Не удалось запустить распознавание речи.')
+      this.callbacks.onError?.('Не удалось начать распознавание речи.')
       this.shouldContinue = false
     }
   }

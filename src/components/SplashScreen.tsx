@@ -14,7 +14,7 @@ export function SplashScreen() {
     <div className="splash" aria-hidden="true">
       <div className="splash-logo">🌐</div>
       <h1>Онлайн Переводчик</h1>
-      <p>Текст и речь — мгновенно</p>
+      <p>Мгновенный перевод текста и речи</p>
     </div>
   )
 }

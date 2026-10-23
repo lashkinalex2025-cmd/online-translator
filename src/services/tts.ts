@@ -43,7 +43,7 @@ function pickVoice(
 export async function speakText(text: string, lang: LangCode): Promise<void> {
   if (!text.trim()) return
   if (typeof window === 'undefined' || !window.speechSynthesis) {
-    throw new Error('Синтез речи не поддерживается в этом браузере')
+    throw new Error('Озвучивание текста не поддерживается в этом браузере')
   }
 
   // iOS / some Android browsers need resume after cancel

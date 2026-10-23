@@ -13,7 +13,7 @@ export const LANG_MAP: Record<LangCode, Language> = Object.fromEntries(
 ) as Record<LangCode, Language>
 
 export function getLangName(code: LangCode | SourceLang): string {
-  if (code === 'auto') return 'Автоопределение'
+  if (code === 'auto') return 'Определить автоматически'
   return LANG_MAP[code]?.name ?? code
 }
 

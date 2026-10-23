@@ -37,7 +37,7 @@ export function LanguageBar({
           onChange={(e) => onSourceChange(e.target.value as SourceLang)}
           aria-label="Исходный язык"
         >
-          <option value="auto">✨ Автоопределение</option>
+          <option value="auto">✨ Определить автоматически</option>
           {LANGUAGES.map((l) => (
             <option key={l.code} value={l.code}>
               {l.flag} {l.name}
@@ -45,7 +45,7 @@ export function LanguageBar({
           ))}
         </select>
         {sourceLang === 'auto' && detectedLang && (
-          <span className="detected-badge" title="Определённый язык говорящего">
+          <span className="detected-badge" title="Распознанный язык">
             {LANGUAGES.find((l) => l.code === detectedLang)?.flag}{' '}
             {LANGUAGES.find((l) => l.code === detectedLang)?.name}
           </span>
@@ -58,7 +58,7 @@ export function LanguageBar({
         onClick={handleSwap}
         title={
           sourceLang === 'auto'
-            ? 'Сначала выберите конкретный исходный язык'
+            ? 'Сначала выберите исходный язык'
             : 'Поменять языки местами'
         }
         aria-label="Поменять языки местами"

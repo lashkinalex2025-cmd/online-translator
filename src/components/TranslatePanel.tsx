@@ -40,23 +40,23 @@ export function TranslatePanel({
   const sourceLabel =
     sourceLang === 'auto'
       ? detectedLang
-        ? `Авто → ${getLangName(detectedLang)}`
-        : 'Автоопределение'
+        ? `Авто: ${getLangName(detectedLang)}`
+        : 'Определить язык автоматически'
       : getLangName(sourceLang)
 
   const handleSpeak = async (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
-      onToast('Нечего озвучивать')
+      onToast('Нет текста для озвучивания')
       return
     }
     if (!lang) {
-      onToast('Язык ещё не определён')
+      onToast('Язык текста ещё не определён')
       return
     }
     try {
       await speakText(text, lang)
     } catch (e) {
-      onToast(e instanceof Error ? e.message : 'Ошибка озвучивания')
+      onToast(e instanceof Error ? e.message : 'Не удалось озвучить текст')
     }
   }
 
@@ -93,8 +93,8 @@ export function TranslatePanel({
           onChange={(e) => onSourceChange(e.target.value)}
           placeholder={
             sourceLang === 'auto'
-              ? 'Введите текст — язык определится автоматически...'
-              : 'Введите текст для перевода...'
+              ? 'Введите текст — язык будет определён автоматически…'
+              : 'Введите текст для перевода…'
           }
           aria-label="Текст для перевода"
           maxLength={5000}
@@ -106,7 +106,7 @@ export function TranslatePanel({
           {loading && (
             <span className="status-pill">
               <span className="pulse-dot" />
-              Перевожу<span className="loading-dots" />
+              Идёт перевод<span className="loading-dots" />
             </span>
           )}
           {error && <span>{error}</span>}
@@ -140,8 +140,8 @@ export function TranslatePanel({
             <button
               type="button"
               className="icon-btn"
-              title="Обмен текстом"
-              aria-label="Обмен текстом с переводом"
+              title="Поменять текст местами"
+              aria-label="Поменять исходный текст и перевод местами"
               onClick={onSwapTexts}
               disabled={sourceLang === 'auto'}
             >
@@ -161,7 +161,7 @@ export function TranslatePanel({
           </div>
         </div>
         <div className={`output-text${translatedText ? '' : ' empty'}`}>
-          {translatedText || 'Перевод появится здесь'}
+          {translatedText || 'Здесь появится перевод'}
         </div>
       </div>
     </>

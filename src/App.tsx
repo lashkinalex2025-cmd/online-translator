@@ -161,7 +161,9 @@ export default function App() {
               setTranslatedText(result)
               void saveTranslation(text, result, from, targetLang)
             } catch (e) {
-              setError(e instanceof Error ? e.message : 'Ошибка перевода')
+              setError(
+                e instanceof Error ? e.message : 'Не удалось выполнить перевод',
+              )
             } finally {
               setLoading(false)
             }
@@ -213,7 +215,9 @@ export default function App() {
         setTranslatedText(result)
         void saveTranslation(sourceText, result, from, targetLang)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Ошибка перевода')
+        setError(
+          e instanceof Error ? e.message : 'Не удалось выполнить перевод',
+        )
       } finally {
         setLoading(false)
       }
@@ -224,7 +228,7 @@ export default function App() {
 
   const handleSwapLanguages = () => {
     if (sourceLang === 'auto') {
-      showToast('Выберите конкретный исходный язык для обмена')
+      showToast('Сначала выберите исходный язык')
       return
     }
     setSourceLang(targetLang)
@@ -237,11 +241,11 @@ export default function App() {
 
   const handleSwapTexts = () => {
     if (sourceLang === 'auto') {
-      showToast('Выберите конкретный исходный язык для обмена')
+      showToast('Сначала выберите исходный язык')
       return
     }
     if (!translatedText.trim() && !sourceText.trim()) {
-      showToast('Нечего менять')
+      showToast('Нет текста для обмена')
       return
     }
     setSourceLang(targetLang)
@@ -262,20 +266,20 @@ export default function App() {
 
   const handleCopy = async () => {
     if (!translatedText.trim()) {
-      showToast('Нечего копировать')
+      showToast('Нет текста для копирования')
       return
     }
     try {
       await navigator.clipboard.writeText(translatedText)
-      showToast('Скопировано')
+      showToast('Текст скопирован')
     } catch {
-      showToast('Не удалось скопировать')
+      showToast('Не удалось скопировать текст')
     }
   }
 
   const handleToggleCurrentFavorite = async () => {
     if (!sourceText.trim() || !translatedText.trim()) {
-      showToast('Сначала сделайте перевод')
+      showToast('Сначала выполните перевод')
       return
     }
 
@@ -284,7 +288,7 @@ export default function App() {
     if (currentFavoriteId) {
       await toggleFavorite(currentFavoriteId)
       setCurrentFavoriteId(null)
-      showToast('Убрано из избранного')
+      showToast('Удалено из избранного')
       await refreshLists()
       return
     }
@@ -309,7 +313,7 @@ export default function App() {
       }
       if (announce && lastAnnouncedDetect.current !== lang) {
         lastAnnouncedDetect.current = lang
-        showToast(`Язык говорящего: ${getLangName(lang)}`)
+        showToast(`Определён язык: ${getLangName(lang)}`)
       }
     },
     [showToast],
@@ -346,7 +350,9 @@ export default function App() {
         setVoiceStatus('listening')
       } catch (e) {
         setDetectingLang(false)
-        setVoiceError(e instanceof Error ? e.message : 'Ошибка перевода')
+        setVoiceError(
+          e instanceof Error ? e.message : 'Не удалось выполнить перевод',
+        )
         setVoiceStatus('listening')
       }
     },
@@ -364,7 +370,7 @@ export default function App() {
     if (!isSpeechRecognitionSupported()) {
       setVoiceStatus('error')
       setVoiceError(
-        'Распознавание речи не поддерживается. Используйте Chrome или Edge.',
+        'Распознавание речи не поддерживается. Откройте приложение в Chrome или Edge.',
       )
       return
     }
@@ -375,7 +381,7 @@ export default function App() {
     } catch {
       setVoiceStatus('error')
       setVoiceError(
-        'Микрофон недоступен или доступ запрещён. Разрешите микрофон в настройках.',
+        'Нет доступа к микрофону. Разрешите его использование в настройках.',
       )
       return
     }
@@ -403,7 +409,11 @@ export default function App() {
       onError: (msg) => {
         if (msg) {
           setVoiceError(msg)
-          if (msg.includes('запрещён') || msg.includes('недоступен')) {
+          if (
+            msg.includes('микрофон') ||
+            msg.includes('Нет доступа') ||
+            msg.includes('недоступна')
+          ) {
             setVoiceStatus('error')
             recognizer.current.stop()
           }
@@ -439,7 +449,7 @@ export default function App() {
     await deleteRecord(id)
     if (currentFavoriteId === id) setCurrentFavoriteId(null)
     await refreshLists()
-    showToast('Удалено')
+    showToast('Запись удалена')
   }
 
   const handleToggleFavorite = async (id: string) => {
@@ -449,7 +459,9 @@ export default function App() {
     }
     if (updated?.favorite) setCurrentFavoriteId(id)
     await refreshLists()
-    showToast(updated?.favorite ? 'В избранном' : 'Убрано из избранного')
+    showToast(
+      updated?.favorite ? 'Добавлено в избранное' : 'Удалено из избранного',
+    )
   }
 
   const handleClearHistory = async () => {
@@ -521,7 +533,7 @@ export default function App() {
             title="История"
             records={history}
             emptyEmoji="🕒"
-            emptyText="История переводов пуста"
+            emptyText="История переводов пока пуста"
             showClear
             onClear={handleClearHistory}
             onOpen={openRecord}
@@ -535,7 +547,7 @@ export default function App() {
             title="Избранное"
             records={favorites}
             emptyEmoji="⭐"
-            emptyText="Пока нет избранных переводов"
+            emptyText="В избранном пока нет переводов"
             onOpen={openRecord}
             onDelete={handleDelete}
             onToggleFavorite={handleToggleFavorite}

@@ -19,9 +19,9 @@ interface VoicePanelProps {
 }
 
 const STATUS_LABEL: Record<VoiceStatus, string> = {
-  idle: 'Остановлено',
-  listening: 'Слушаю...',
-  translating: 'Перевожу...',
+  idle: 'Ожидание',
+  listening: 'Слушаю…',
+  translating: 'Идёт перевод…',
   stopped: 'Остановлено',
   error: 'Ошибка',
 }
@@ -49,25 +49,25 @@ export function VoicePanel({
   const sourceLabel =
     sourceLang === 'auto'
       ? detectedLang
-        ? `Авто → ${getLangName(detectedLang)}`
-        : 'Автоопределение языка'
+        ? `Авто: ${getLangName(detectedLang)}`
+        : 'Определение языка'
       : getLangName(sourceLang)
   const ttsOk = isTtsSupported()
   const canSpeakTranslation = Boolean(translatedText.trim()) && ttsOk
 
   const handleSpeak = async (text: string, lang: LangCode | null) => {
     if (!text.trim()) {
-      onToast('Нечего озвучивать')
+      onToast('Нет текста для озвучивания')
       return
     }
     if (!lang) {
-      onToast('Язык ещё не определён')
+      onToast('Язык текста ещё не определён')
       return
     }
     try {
       await speakText(text, lang)
     } catch (e) {
-      onToast(e instanceof Error ? e.message : 'Ошибка озвучивания')
+      onToast(e instanceof Error ? e.message : 'Не удалось озвучить текст')
     }
   }
 
@@ -92,7 +92,7 @@ export function VoicePanel({
         {detecting && (
           <span className="status-pill translating">
             <span className="pulse-dot" />
-            Определяю язык...
+            Определение языка…
           </span>
         )}
         {sourceLang === 'auto' && detectedLang && !detecting && (
@@ -115,7 +115,7 @@ export function VoicePanel({
 
       <div className="panel">
         <div className="panel-label">
-          <span>Распознано ({sourceLabel})</span>
+          <span>Исходный текст ({sourceLabel})</span>
           {ttsOk && (
             <div className="panel-actions">
               <button
@@ -130,7 +130,7 @@ export function VoicePanel({
           )}
         </div>
         <div className={`output-text${displaySource ? '' : ' empty'}`}>
-          {displaySource || 'Нажмите «Старт» и говорите...'}
+          {displaySource || 'Нажмите «Старт» и начните говорить…'}
         </div>
       </div>
 
@@ -151,7 +151,7 @@ export function VoicePanel({
           )}
         </div>
         <div className={`output-text${translatedText ? '' : ' empty'}`}>
-          {translatedText || 'Перевод появится здесь'}
+          {translatedText || 'Здесь появится перевод'}
         </div>
         {ttsOk && (
           <button
@@ -183,8 +183,8 @@ export function VoicePanel({
         )}
         <p className="voice-hint">
           {sourceLang === 'auto'
-            ? `Говорите на любом из поддерживаемых языков. Приложение само определит язык и переведёт на «${getLangName(targetLang)}».`
-            : `Говорите на языке «${getLangName(sourceLang)}». Текст будет переведён на «${getLangName(targetLang)}» в реальном времени.`}
+            ? `Говорите на любом из поддерживаемых языков. Приложение определит язык и выполнит перевод на «${getLangName(targetLang)}».`
+            : `Говорите на языке «${getLangName(sourceLang)}». Текст будет сразу переведён на «${getLangName(targetLang)}».`}
         </p>
       </div>
     </>
