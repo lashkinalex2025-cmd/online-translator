@@ -78,6 +78,12 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (voiceStatus === 'listening' || voiceStatus === 'translating') {
+      recognizer.current.setLanguage(sourceLang)
+    }
+  }, [sourceLang, voiceStatus])
+
   const saveTranslation = useCallback(
     async (src: string, dst: string, from: LangCode, to: LangCode) => {
       const hash = `${from}|${to}|${src}|${dst}`
