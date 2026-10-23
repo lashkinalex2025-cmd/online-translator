@@ -54,9 +54,17 @@ npm run android
 
 В Android Studio соберите APK/AAB. Разрешение на микрофон уже указано в шаблоне `AndroidManifest` через Capacitor.
 
-## GitHub Pages
+## Онлайн-версия
 
-Репозиторий можно опубликовать на GitHub Pages. Для относительных путей при необходимости задайте `base` в `vite.config.ts`.
+- GitHub: https://github.com/lashkinalex2025-cmd/online-translator
+- GitHub Pages: https://lashkinalex2025-cmd.github.io/online-translator/
+
+Папка `docs/` — собранный билд для Pages. После изменений UI:
+
+```bash
+npm run build
+# скопируйте dist → docs и закоммитьте
+```
 
 ## Структура
 
