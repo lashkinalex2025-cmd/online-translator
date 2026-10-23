@@ -1,14 +1,56 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2563eb"/>
-      <stop offset="1" stop-color="#7c3aed"/>
+    <linearGradient id="bg" x1="12%" y1="8%" x2="88%" y2="92%">
+      <stop offset="0%" stop-color="#0f1f6b"/>
+      <stop offset="40%" stop-color="#1d4ed8"/>
+      <stop offset="78%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
     </linearGradient>
+    <linearGradient id="sheen" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="42%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#020617" stop-opacity="0.28"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="30%" cy="24%" r="58%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="55%" stop-color="#93c5fd" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="metal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="45%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#020617" flood-opacity="0.35"/>
+    </filter>
   </defs>
-  <rect width="128" height="128" rx="28" fill="url(#g)"/>
-  <text x="64" y="78" text-anchor="middle" font-size="56" font-family="Segoe UI, Arial, sans-serif">🌐</text>
-  <path d="M28 92h72" stroke="rgba(255,255,255,0.35)" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="44" cy="48" r="10" fill="rgba(255,255,255,0.9)"/>
-  <circle cx="84" cy="48" r="10" fill="rgba(255,255,255,0.9)"/>
-  <path d="M54 48h20" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round"/>
+
+  <rect width="1024" height="1024" rx="28" ry="28" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="28" ry="28" fill="url(#sheen)"/>
+  <rect width="1024" height="1024" rx="28" ry="28" fill="url(#spot)"/>
+
+  <g transform="translate(0, 0) scale(1)" filter="url(#soft)">
+    <!-- Soft plate behind symbol -->
+    <circle cx="512" cy="468" r="268" fill="#0b1228" opacity="0.22"/>
+
+    <!-- Globe ring -->
+    <circle cx="512" cy="456" r="218" fill="none" stroke="url(#metal)" stroke-width="36"/>
+    <ellipse cx="512" cy="456" rx="100" ry="218" fill="none" stroke="url(#metal)" stroke-width="22" opacity="0.95"/>
+    <path d="M294 456 H730" stroke="url(#metal)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M328 368 Q512 328 696 368" fill="none" stroke="url(#metal)" stroke-width="18" stroke-linecap="round" opacity="0.9"/>
+    <path d="M328 544 Q512 584 696 544" fill="none" stroke="url(#metal)" stroke-width="18" stroke-linecap="round" opacity="0.9"/>
+
+    <!-- Dual speech / translation arcs -->
+    <path d="M220 720 C320 630, 420 630, 500 720" fill="none" stroke="url(#gold)" stroke-width="34" stroke-linecap="round"/>
+    <path d="M524 720 C604 630, 704 630, 804 720" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+    <circle cx="220" cy="720" r="22" fill="url(#gold)"/>
+    <circle cx="804" cy="720" r="22" fill="#ffffff"/>
+  </g>
 </svg>
