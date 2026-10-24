@@ -1,6 +1,7 @@
 import type { LangCode, SourceLang, VoiceStatus } from '../types'
 import { getLangName } from '../constants/languages'
 import { speakText, isTtsSupported } from '../services/tts'
+import { AudioDownloadControls } from './AudioDownloadControls'
 
 interface VoicePanelProps {
   status: VoiceStatus
@@ -163,6 +164,12 @@ export function VoicePanel({
             🔊 Прослушать перевод
           </button>
         )}
+        <AudioDownloadControls
+          text={translatedText}
+          lang={targetLang}
+          onToast={onToast}
+          variant="block"
+        />
       </div>
 
       <div className="voice-controls">

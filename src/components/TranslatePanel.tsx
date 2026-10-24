@@ -1,4 +1,5 @@
 import { speakText, isTtsSupported } from '../services/tts'
+import { AudioDownloadControls } from './AudioDownloadControls'
 import type { LangCode, SourceLang } from '../types'
 import { getLangName } from '../constants/languages'
 
@@ -161,6 +162,12 @@ export function TranslatePanel({
         <div className={`output-text${translatedText ? '' : ' empty'}`}>
           {translatedText || 'Здесь появится перевод'}
         </div>
+        <AudioDownloadControls
+          text={translatedText}
+          lang={targetLang}
+          onToast={onToast}
+          variant="block"
+        />
       </div>
     </>
   )
