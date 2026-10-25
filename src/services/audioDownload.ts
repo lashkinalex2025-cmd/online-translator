@@ -2,20 +2,53 @@ import type { LangCode } from '../types'
 
 export type AudioFormat = 'mp3' | 'm4a'
 
-const VOICE_BY_LANG: Record<LangCode, string> = {
-  ru: 'ru',
-  en: 'en',
-  de: 'de',
-  fr: 'fr',
-  es: 'es',
+/** Более естественные голоса espeak-ng (язык + женский тембр). */
+const VOICE_BY_LANG: Record<
+  LangCode,
+  { language: string; gender: 'female' | 'male' }
+> = {
+  ru: { language: 'ru', gender: 'female' },
+  en: { language: 'en-us', gender: 'female' },
+  de: { language: 'de', gender: 'female' },
+  fr: { language: 'fr', gender: 'female' },
+  es: { language: 'es', gender: 'female' },
+}
+
+/**
+ * Параметры «живого» голоса: чуть медленнее, шире диапазон высоты
+ * (меньше монотонности), лёгкая пауза между словами.
+ */
+const NATURAL_VOICE = {
+  rate: 155,
+  pitch: 48,
+  range: 72,
+  wordGap: 2,
+  volume: 100,
+} as const
+
+type VoiceSelector = {
+  language: string
+  gender: 'female' | 'male'
+}
+
+type SynthesizeOptions = {
+  voice?: string | VoiceSelector
+  endPause?: boolean
+  rate?: number
+  pitch?: number
+  range?: number
+  wordGap?: number
+  volume?: number
+  ssml?: boolean
 }
 
 type EspeakInstance = {
   synthesize: (
     text: string,
-    options?: { voice?: string; endPause?: boolean },
+    options?: SynthesizeOptions,
   ) => { samples: Int16Array; sampleRate: number }
   loadLanguages: (languages: string[]) => Promise<void>
+  loadVoice?: (selector: string | VoiceSelector) => Promise<void>
 }
 
 let espeakPromise: Promise<EspeakInstance> | null = null
@@ -37,6 +70,15 @@ async function getEspeak(): Promise<EspeakInstance> {
   return espeakPromise
 }
 
+/** SSML с лёгкой просодией — естественнее ровного «робота». */
+function toNaturalSsml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return `<speak><prosody rate="medium" pitch="medium">${escaped}</prosody></speak>`
+}
+
 async function synthesizePcm(
   text: string,
   lang: LangCode,
@@ -48,19 +90,63 @@ async function synthesizePcm(
 
   const espeak = await getEspeak()
   const voice = VOICE_BY_LANG[lang]
+  const dictLang = voice.language.split('-')[0]
+
+  const baseOptions: SynthesizeOptions = {
+    voice,
+    endPause: true,
+    ...NATURAL_VOICE,
+  }
+
+  const run = (options: SynthesizeOptions, useSsml: boolean) => {
+    const input = useSsml ? toNaturalSsml(trimmed) : trimmed
+    return espeak.synthesize(input, { ...options, ssml: useSsml })
+  }
 
   try {
-    const result = espeak.synthesize(trimmed, { voice, endPause: true })
+    let result = run(baseOptions, true)
+    if (!result.samples.length) result = run(baseOptions, false)
     if (!result.samples.length) throw new Error('Пустой аудиорезультат')
-    return { samples: result.samples, sampleRate: result.sampleRate }
+    return {
+      samples: softNormalizePcm(result.samples),
+      sampleRate: result.sampleRate,
+    }
   } catch {
-    await espeak.loadLanguages([voice])
-    const result = espeak.synthesize(trimmed, { voice, endPause: true })
+    await espeak.loadLanguages([dictLang])
+    if (espeak.loadVoice) {
+      await espeak.loadVoice(voice).catch(() => undefined)
+    }
+    let result = run(baseOptions, true)
+    if (!result.samples.length) result = run(baseOptions, false)
     if (!result.samples.length) {
       throw new Error('Не удалось синтезировать речь')
     }
-    return { samples: result.samples, sampleRate: result.sampleRate }
+    return {
+      samples: softNormalizePcm(result.samples),
+      sampleRate: result.sampleRate,
+    }
   }
+}
+
+/** Лёгкая нормализация амплитуды — ровнее и «теплее» пики. */
+function softNormalizePcm(samples: Int16Array): Int16Array {
+  let peak = 1
+  for (let i = 0; i < samples.length; i++) {
+    const a = Math.abs(samples[i])
+    if (a > peak) peak = a
+  }
+  if (peak < 1000) return samples
+
+  const target = 22000
+  const gain = Math.min(1.35, target / peak)
+  if (gain >= 0.98 && gain <= 1.05) return samples
+
+  const out = new Int16Array(samples.length)
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.round(samples[i] * gain)
+    out[i] = v > 32767 ? 32767 : v < -32768 ? -32768 : v
+  }
+  return out
 }
 
 async function encodeMp3(samples: Int16Array, sampleRate: number): Promise<Blob> {

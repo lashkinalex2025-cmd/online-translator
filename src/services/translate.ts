@@ -26,9 +26,13 @@ function normalizeSpacingAndPunctuation(text: string): string {
   result = result
     .replace(/\u00A0/g, ' ')
     .replace(/[ \t]+/g, ' ')
+    // Многоточие и повторы знаков
+    .replace(/\.{3,}/g, '…')
+    .replace(/([!?])\1+/g, '$1')
+    .replace(/([.!?…]){2,}/g, '$1')
     // Пробел после конца предложения, если склеены сегменты API
     .replace(/([.!?…»"”])([A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜÝŸА-ЯЁ])/g, '$1 $2')
-    .replace(/([.!?…])([a-zàáâãäåæçèéêëìíîïñòóôõöøùúûüýÿа-яё])/gi, '$1 $2')
+    .replace(/([.!?…])([A-Za-zÀ-ÿА-Яа-яЁё])/g, '$1 $2')
     .replace(/\s+([.,:;!?…])/g, '$1')
     .replace(/([«„“"])\s+/g, '$1')
     .replace(/\s+([»”"'])/g, '$1')
@@ -39,9 +43,72 @@ function normalizeSpacingAndPunctuation(text: string): string {
     .replace(/:\s*/g, ': ')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([.!?…])/g, '$1')
+    .replace(/([.!?…])([«„“"'(\[])/g, '$1 $2')
     .trim()
 
   return result
+}
+
+/** Перенос конечного знака из исходника, если перевод его потерял. */
+function mirrorTerminalPunctuation(source: string, translated: string): string {
+  const src = source.trim()
+  let dst = translated.trim()
+  if (!src || !dst) return dst
+
+  const srcEnd = src.match(/[.!?…]+$/)?.[0]
+  const dstHasEnd = /[.!?…]$/.test(dst)
+  if (srcEnd && !dstHasEnd) {
+    const mark = srcEnd.includes('?') ? '?' : srcEnd.includes('!') ? '!' : srcEnd.includes('…') ? '…' : '.'
+    return `${dst}${mark}`
+  }
+
+  // Устная речь без знаков: завершаем повествовательное предложение точкой
+  if (!srcEnd && !dstHasEnd && dst.length >= 28 && !/[¿¡?]/.test(dst)) {
+    return `${dst}.`
+  }
+
+  return dst
+}
+
+/**
+ * Восстановление границ предложений в «слипшемся» тексте без точек
+ * (часто после распознавания речи). Срабатывает только если в тексте
+ * ещё нет [.?!…], и только перед местоимением + глагол, если слева
+ * не подчинительный союз (чтобы не ломать «if he has / если он»).
+ */
+function restoreSentenceBoundaries(text: string, lang: LangCode): string {
+  if (/[.!?…]/.test(text)) return text
+
+  let result = text
+
+  if (lang === 'en') {
+    result = result.replace(
+      /(?<=\p{L}{2,})(?<!\b(?:if|when|because|while|that|as|than|whether|since|after|before|until|unless|though|although|what|why|how|where|who|whom|whose|which|and|or|but|so|for))\s+(I|We|They|He|She|You|It)\s+(am|is|are|was|were|have|has|had|will|would|can|could|do|does|did|don't|doesn't|didn't|went|go|got|need|want|think|know)\b/giu,
+      '. $1 $2',
+    )
+  } else if (lang === 'ru') {
+    result = result.replace(
+      /(?<=[А-Яа-яЁё]{3,})(?<!\b(?:что|чтобы|если|когда|где|куда|как|пока|хотя|будто|чтоб|то|и|а|но|или|либо))\s+(Я|Мы|Он|Она|Они|Вы|Ты)\s+(был|была|были|буду|будем|хочу|хотел|иду|шёл|шел|ходила|ходил|сделал|сказал|думаю|знаю|могу|не|уже|сейчас|вчера|сегодня)\b/giu,
+      '. $1 $2',
+    )
+  } else if (lang === 'de') {
+    result = result.replace(
+      /(?<=\p{L}{3,})(?<!\b(?:weil|dass|daß|wenn|ob|als|bevor|nachdem|obwohl|während|damit|und|oder|aber|sondern))\s+(Ich|Wir|Sie|Er|Es|Du)\s+(bin|bist|ist|sind|habe|hat|war|werde|kann|muss|gehe|ging|will|möchte)\b/giu,
+      '. $1 $2',
+    )
+  } else if (lang === 'fr') {
+    result = result.replace(
+      /(?<=\p{L}{3,})(?<!\b(?:si|quand|lorsque|que|parce|pendant|afin|bien|et|ou|mais|car|donc))\s+(Je|Nous|Ils|Elles|Il|Elle|Tu|Vous)\s+(suis|es|est|sommes|ai|as|a|étais|vais|peux|dois|veux|pense|sais)\b/giu,
+      '. $1 $2',
+    )
+  } else if (lang === 'es') {
+    result = result.replace(
+      /(?<=\p{L}{3,})(?<!\b(?:si|cuando|porque|aunque|mientras|que|y|o|pero|sino))\s+(Yo|Nosotros|Ellos|Ellas|Él|Ella|Tú|Usted|Ustedes)\s+(soy|eres|es|somos|estoy|está|tengo|fui|voy|puedo|quiero|sé|pienso)\b/giu,
+      '. $1 $2',
+    )
+  }
+
+  return result.replace(/\s{2,}/g, ' ').trim()
 }
 
 function applyReplacements(text: string, replacements: Replacement[]): string {
@@ -70,14 +137,29 @@ function polishRussian(text: string): string {
   let result = normalizeSpacingAndPunctuation(text)
   if (!result) return result
 
+  result = restoreSentenceBoundaries(result, 'ru')
+
   // «то что» → «то, что»
   result = result.replace(uw('то\\s+что'), 'то, что')
 
-  // Запятая перед подчинительными союзами после слова ≥3 букв (не трогаем «а что», «ну что»)
+  // Сначала составные союзы (иначе «потому что» станет «потому, что»)
   result = result.replace(
-    /([А-Яа-яЁёA-Za-z]{3,})\s+(что|чтобы|который|которая|которое|которые|которых|которого|которой|куда|когда|потому\s+что|так\s+как)(?![\p{L}\p{N}_])/giu,
+    /([А-Яа-яЁёA-Za-z]{3,})\s+(несмотря\s+на\s+то\s+что|потому\s+что|так\s+как)(?![\p{L}\p{N}_])/giu,
     '$1, $2',
   )
+  // Запятая перед подчинительными союзами после слова ≥3 букв (не трогаем «а что», «ну что»)
+  result = result.replace(
+    /([А-Яа-яЁёA-Za-z]{3,})\s+(чтобы|который|которая|которое|которые|которых|которого|которой|куда|когда|где|если|хотя|пока|будто|словно|что)(?![\p{L}\p{N}_])/giu,
+    '$1, $2',
+  )
+  // Запятая перед сочинительными «а / но / однако / зато»
+  result = result.replace(
+    /([А-Яа-яЁёA-Za-z]{2,})\s+(но|а|однако|зато)(?=[\s,]|[А-Яа-яЁё])/giu,
+    '$1, $2',
+  )
+  // На случай если «потому что» уже разбили
+  result = result.replace(/потому,\s*что/gi, 'потому что')
+  result = result.replace(/так,\s*как(?=\s)/gi, 'так как')
   result = result.replace(/,\s*,+/g, ',')
 
   result = applyReplacements(result, [
@@ -132,6 +214,15 @@ function polishEnglish(text: string): string {
   let result = normalizeSpacingAndPunctuation(text)
   if (!result) return result
 
+  result = restoreSentenceBoundaries(result, 'en')
+
+  // Запятая перед but / yet / although / because в середине фразы
+  result = result.replace(
+    /([A-Za-z]{2,})\s+(but|yet|although|because)\s+/gi,
+    '$1, $2 ',
+  )
+  result = result.replace(/,\s*,+/g, ',')
+
   result = applyReplacements(result, [
     [/\bmore\s+better\b/gi, 'better'],
     [/\bmost\s+best\b/gi, 'best'],
@@ -144,6 +235,7 @@ function polishEnglish(text: string): string {
     [/\bI\s+is\b/g, 'I am'],
     [/\bi\s+are\b/g, 'I am'],
     [/\bI\s+are\b/g, 'I am'],
+    [/please\s+(?=[a-z])/gi, 'please, '],
     [/\s+[—–]\s+/g, ' — '],
   ])
 
@@ -160,6 +252,15 @@ function polishEnglish(text: string): string {
 function polishGerman(text: string): string {
   let result = normalizeSpacingAndPunctuation(text)
   if (!result) return result
+
+  result = restoreSentenceBoundaries(result, 'de')
+
+  // Запятая перед Nebensatz-Konjunktionen
+  result = result.replace(
+    /([A-Za-zÄÖÜäöüß]{2,})\s+(weil|dass|daß|wenn|obwohl|während|damit|ob|als|bevor|nachdem|sondern|aber)\s+/gi,
+    '$1, $2 ',
+  )
+  result = result.replace(/,\s*,+/g, ',')
 
   result = applyReplacements(result, [
     [uw('ich\\s+bin\\s+bin'), 'ich bin'],
@@ -179,6 +280,15 @@ function polishGerman(text: string): string {
 function polishFrench(text: string): string {
   let result = normalizeSpacingAndPunctuation(text)
   if (!result) return result
+
+  result = restoreSentenceBoundaries(result, 'fr')
+
+  // Запятая перед mais / car / donc / cependant / parce que / afin que / bien que
+  result = result.replace(
+    /([A-Za-zÀ-ÿ]{2,})\s+(mais|car|donc|cependant|parce\s+que|afin\s+que|bien\s+que)\s+/gi,
+    '$1, $2 ',
+  )
+  result = result.replace(/,\s*,+/g, ',')
 
   // Французская пунктуация: пробел перед : ; ! ?
   result = result
@@ -205,6 +315,15 @@ function polishFrench(text: string): string {
 function polishSpanish(text: string): string {
   let result = normalizeSpacingAndPunctuation(text)
   if (!result) return result
+
+  result = restoreSentenceBoundaries(result, 'es')
+
+  // Запятая перед pero / sino / aunque / porque / mientras
+  result = result.replace(
+    /([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,})\s+(pero|sino|aunque|porque|mientras)\s+/gi,
+    '$1, $2 ',
+  )
+  result = result.replace(/,\s*,+/g, ',')
 
   result = applyReplacements(result, [
     [uw('más\\s+mejor'), 'mejor'],
@@ -239,21 +358,41 @@ function polishSpanish(text: string): string {
   return result.replace(/\s{2,}/g, ' ').trim()
 }
 
-function finalizeTranslation(text: string, to: LangCode): string {
+function finalizeTranslation(text: string, to: LangCode, source?: string): string {
+  let polished: string
   switch (to) {
     case 'ru':
-      return polishRussian(text)
+      polished = polishRussian(text)
+      break
     case 'en':
-      return polishEnglish(text)
+      polished = polishEnglish(text)
+      break
     case 'de':
-      return polishGerman(text)
+      polished = polishGerman(text)
+      break
     case 'fr':
-      return polishFrench(text)
+      polished = polishFrench(text)
+      break
     case 'es':
-      return polishSpanish(text)
+      polished = polishSpanish(text)
+      break
     default:
-      return text.trim()
+      polished = text.trim()
   }
+
+  if (source) {
+    polished = mirrorTerminalPunctuation(source, polished)
+    // После добавления конечного знака снова выровнять регистр начала
+    if (to === 'ru') polished = capitalizeSentences(polished, 'а-яё')
+    else if (to === 'en') {
+      polished = capitalizeSentences(polished, 'a-z')
+      polished = polished.replace(/(^|[^\w])i(?=['\s.,!?;:]|$)/g, '$1I')
+    } else if (to === 'de') polished = capitalizeSentences(polished, 'a-zäöüß')
+    else if (to === 'fr') polished = capitalizeSentences(polished, 'a-zàâäæçéèêëïîôœùûüÿ')
+    else if (to === 'es') polished = capitalizeSentences(polished, 'a-záéíóúüñ')
+  }
+
+  return polished.replace(/\s{2,}/g, ' ').trim()
 }
 
 /**
@@ -280,7 +419,7 @@ export async function translateText(
     try {
       const result = await fn(trimmed, from, to)
       if (result) {
-        const polished = finalizeTranslation(result, to)
+        const polished = finalizeTranslation(result, to, trimmed)
         cache.set(key, polished)
         return polished
       }
